@@ -7,9 +7,10 @@ interface TodoState {
   loading: boolean;
   error: string | null;
   loadTodos: () => Promise<void>;
-  addTodo: (title: string) => Promise<void>;
-  removeTodo: (id: number) => Promise<void>;
-  toggleTodo: (id: number) => Promise<void>;
+  addTodo: (title: string, dueDate?: string) => Promise<void>;
+  removeTodo: (id: string) => Promise<void>;
+  toggleTodo: (id: string) => Promise<void>;
+  setDueDate: (id: string, dueDate: string | null) => Promise<void>;
 }
 
 export const useTodoStore = create<TodoState>((set, get) => ({
@@ -27,18 +28,16 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     }
   },
 
-  addTodo: async (title: string) => {
+  addTodo: async (title: string, dueDate?: string) => {
     try {
-      const newTodo = await api.createTodo(title);
-      // JSONPlaceholder always returns id 201; prepend with a unique local id
-      const localTodo: Todo = { ...newTodo, id: Date.now() };
-      set({ todos: [localTodo, ...get().todos] });
+      const newTodo = await api.createTodo(title, dueDate);
+      set({ todos: [newTodo, ...get().todos] });
     } catch {
       set({ error: 'Failed to add todo.' });
     }
   },
 
-  removeTodo: async (id: number) => {
+  removeTodo: async (id: string) => {
     try {
       await api.deleteTodo(id);
       set({ todos: get().todos.filter((t) => t.id !== id) });
@@ -47,18 +46,23 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     }
   },
 
-  toggleTodo: async (id: number) => {
+  toggleTodo: async (id: string) => {
     const todo = get().todos.find((t) => t.id === id);
     if (!todo) return;
     try {
-      await api.toggleTodo(id, !todo.completed);
-      set({
-        todos: get().todos.map((t) =>
-          t.id === id ? { ...t, completed: !t.completed } : t
-        ),
-      });
+      const updated = await api.updateTodo(id, { completed: !todo.completed });
+      set({ todos: get().todos.map((t) => (t.id === id ? updated : t)) });
     } catch {
       set({ error: 'Failed to update todo.' });
+    }
+  },
+
+  setDueDate: async (id: string, dueDate: string | null) => {
+    try {
+      const updated = await api.updateTodo(id, { dueDate });
+      set({ todos: get().todos.map((t) => (t.id === id ? updated : t)) });
+    } catch {
+      set({ error: 'Failed to update due date.' });
     }
   },
 }));
